@@ -814,10 +814,7 @@
           <span>Alternar 🔄</span>
         </button>
       </div>
-      <div class="form-group">
-        <label>URL da Logo Customizada (Opcional)</label>
-        <input type="text" id="config-logo-url" class="form-control" placeholder="https://exemplo.com/logo.png" onchange="salvarLogoUrl(this.value)">
-      </div>
+
       <hr style="border-color: var(--color-border-dark); margin: 16px 0;">
       <button class="btn btn-secondary" style="width: 100%;" onclick="abrirModalMinhaSenha()">🔑 Alterar Minha Senha</button>
       <button class="btn btn-danger" style="width: 100%; margin-top: 10px;" onclick="fazerLogout()">🚪 Sair da Conta (Logout)</button>
@@ -851,16 +848,15 @@
 
     function carregarTemaSalvo() {
       const tema = localStorage.getItem('hend_theme');
-      if (tema === 'light') {
+      const isLight = (tema === 'light');
+      if (isLight) {
         document.body.classList.add('light-mode');
         document.getElementById('theme-status-text').innerText = '☀️ Modo Claro';
+      } else {
+        document.body.classList.remove('light-mode');
+        document.getElementById('theme-status-text').innerText = '🌙 Modo Escuro';
       }
-      const logoUrl = localStorage.getItem('hend_logo_url');
-      if (logoUrl) {
-        const inputLogo = document.getElementById('config-logo-url');
-        if (inputLogo) inputLogo.value = logoUrl;
-        aplicarLogoNoSistema(logoUrl);
-      }
+      atualizarLogoPorTema(isLight);
     }
 
     function alternarTemaVisual() {
@@ -868,24 +864,19 @@
       const isLight = document.body.classList.contains('light-mode');
       localStorage.setItem('hend_theme', isLight ? 'light' : 'dark');
       document.getElementById('theme-status-text').innerText = isLight ? '☀️ Modo Claro' : '🌙 Modo Escuro';
+      atualizarLogoPorTema(isLight);
     }
 
-    function salvarLogoUrl(url) {
-      url = (url || '').trim();
-      if (url) {
-        localStorage.setItem('hend_logo_url', url);
-        aplicarLogoNoSistema(url);
-        alert('✨ Logo configurada com sucesso! O ícone do aplicativo na tela inicial e no cabeçalho foram atualizados.');
-      } else {
-        localStorage.removeItem('hend_logo_url');
-        location.reload();
-      }
+    function atualizarLogoPorTema(isLight) {
+      // Modo escuro usa 2.png | Modo claro usa 4.png
+      const logoFile = isLight ? '4.png' : '2.png';
+      aplicarLogoNoSistema(logoFile);
     }
 
     function aplicarLogoNoSistema(url) {
       if (!url) return;
       
-      // 1. Atualizar Logo no Cabeçalho (substitui o ícone/raio)
+      // 1. Atualizar Logo no Cabeçalho
       const logoSlot = document.getElementById('logo-icon-slot');
       if (logoSlot) {
         logoSlot.innerHTML = `<img src="${url}" class="brand-logo-img" alt="Logo" style="height: 38px; width: auto; object-fit: contain;">`;
