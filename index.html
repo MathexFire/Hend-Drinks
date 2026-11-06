@@ -903,6 +903,8 @@
       if (usuarioAtual.cargo === 'Vendedor') {
         document.getElementById('btn-novo-produto').style.display = 'none';
         document.getElementById('btn-reset-total-vendas').style.display = 'none';
+        // Garantir que a aba inicial para o vendedor seja sempre Vendas
+        mudarAba('vendas');
       } else if (usuarioAtual.cargo === 'ADM') {
         document.getElementById('btn-reset-total-vendas').style.display = 'inline-flex';
       }
@@ -1086,7 +1088,7 @@
     // --- NAVEGAÇÃO DE ABAS ---
 
     function mudarAba(aba, el) {
-      if (usuarioAtual && usuarioAtual.cargo === 'Vendedor' && (aba === 'financeiro' || aba === 'equipe')) {
+      if (usuarioAtual && usuarioAtual.cargo === 'Vendedor' && (aba === 'financeiro' || aba === 'equipe' || aba === 'estoque')) {
         return alert('Acesso restrito apenas para Administradores.');
       }
 
