@@ -293,10 +293,27 @@
     .ai-box {
       background: linear-gradient(135deg, #1d2b1a 0%, var(--color-card-dark) 100%);
       border: 1px solid var(--color-primary); border-radius: var(--radius-md);
-      padding: 14px; margin-bottom: 16px;
+      padding: 16px; margin-bottom: 20px;
+    }
+    .ai-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .ai-title strong { color: var(--color-primary); font-size: 1rem; }
+    .ai-content { font-size: 0.85rem; line-height: 1.5; color: var(--color-text-main); }
+    .ai-content ul { padding-left: 18px; margin-top: 6px; }
+    .ai-content li { margin-bottom: 4px; color: var(--color-text-muted); }
+    .ai-content li strong { color: var(--color-text-main); }
+
+    /* TABLES & LISTS */
+    .vendedor-table {
+      width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem;
+    }
+    .vendedor-table th {
+      text-align: left; background: var(--color-card-secondary); padding: 10px;
+      color: var(--color-text-muted); font-size: 0.78rem; border-bottom: 1px solid var(--color-border-dark);
+    }
+    .vendedor-table td {
+      padding: 10px; border-bottom: 1px solid var(--color-border-dark); color: var(--color-text-main);
     }
 
-    /* LISTA DE USUÁRIOS E VENDAS */
     .user-row, .venda-row {
       background: var(--color-card-dark); border: 1px solid var(--color-border-dark);
       border-radius: var(--radius-md); padding: 12px 16px;
@@ -456,12 +473,15 @@
         <button class="btn btn-sm" id="btn-novo-produto" onclick="abrirModalProduto()">+ Novo Produto</button>
       </div>
 
+      <!-- ANÁLISE DE IA DE ESTOQUE DEDICADA E AVANÇADA -->
       <div class="ai-box">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="color: var(--color-primary);">🤖 Diagnóstico de Reposição (IA)</strong>
-          <button class="btn btn-sm" style="padding: 4px 10px; font-size: 0.75rem;" onclick="gerarDiagnosticoEstoqueIA()">Analisar</button>
+        <div class="ai-title">
+          <strong>🤖 Diagnóstico Inteligente de Estoque (IA)</strong>
+          <button class="btn btn-sm" style="padding: 4px 10px; font-size: 0.75rem;" onclick="gerarDiagnosticoEstoqueIA()">Atualizar Análise 🔄</button>
         </div>
-        <div id="ai-estoque-result" style="font-size: 0.83rem; color: var(--color-text-muted);">Clique para consultar previsão de reposição.</div>
+        <div id="ai-estoque-result" class="ai-content">
+          Clique no botão "Atualizar Análise" para gerar o relatório inteligente de reposição.
+        </div>
       </div>
 
       <div class="grid-products" id="grid-estoque-produtos"></div>
@@ -474,6 +494,17 @@
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-secondary btn-sm" onclick="abrirModalDespesaExtra()">+ Custo/Entrada</button>
           <button class="btn btn-danger btn-sm" id="btn-reset-total-vendas" onclick="resetarTodasVendasTotalmente()" style="display:none;">🚨 Reset Total de Vendas</button>
+        </div>
+      </div>
+
+      <!-- ANÁLISE DE IA FINANCEIRA DEDICADA -->
+      <div class="ai-box">
+        <div class="ai-title">
+          <strong>🧠 Consultor Financeiro Gemini (IA)</strong>
+          <button class="btn btn-sm" style="padding: 4px 10px; font-size: 0.75rem;" onclick="gerarDiagnosticoFinanceiroIA()">Gerar Diagnóstico 📊</button>
+        </div>
+        <div id="ai-financeiro-result" class="ai-content">
+          Clique no botão acima para processar as margens, lucros e desempenho de caixa em tempo real.
         </div>
       </div>
 
@@ -510,6 +541,27 @@
           </select>
         </div>
         <canvas id="chartFinanceiro" style="width: 100%; max-height: 240px;"></canvas>
+      </div>
+
+      <!-- SEÇÃO EXCLUSIVA: RELATÓRIO DE VENDEDORES E COMISSÕES A PAGAR -->
+      <div style="background: var(--color-card-dark); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--color-border-dark); margin-bottom: 20px;">
+        <h3 style="font-size: 1rem; color: var(--color-primary); margin-bottom: 8px;">👥 Vendas e Comissões por Vendedor (A Receber / A Pagar)</h3>
+        <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 12px;">Detalhamento individual de desempenho para fechamento de comissão da equipe.</p>
+        <div style="overflow-x: auto;">
+          <table class="vendedor-table">
+            <thead>
+              <tr>
+                <th>Vendedor</th>
+                <th>Qtd. Vendas</th>
+                <th>Total Vendido (R$)</th>
+                <th>Comissão Acumulada (R$)</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-vendedores-comissoes">
+              <tr><td colspan="4" style="text-align: center; color: var(--color-text-muted);">Nenhum dado de venda registrado.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- HISTÓRICO DE VENDAS COM CANCELAMENTO/REMOÇÃO INDIVIDUAL -->
@@ -784,7 +836,7 @@
 
     window.onload = async () => {
       carregarTemaSalvo();
-      verificarSessaoUsuario();
+      await verificarSessaoUsuario();
     };
 
     function carregarTemaSalvo() {
@@ -813,16 +865,30 @@
       }
     }
 
-    function verificarSessaoUsuario() {
+    // CORREÇÃO CRÍTICA DO BLOQUEIO: Consulta o Banco de Dados em tempo real
+    async function verificarSessaoUsuario() {
       const sessaoRaw = localStorage.getItem('hend_user_session');
       if (sessaoRaw) {
         try {
           const sessao = JSON.parse(sessaoRaw);
           const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
           if (Date.now() - sessao.timestamp < seteDiasMs) {
-            usuarioAtual = sessao.user;
+            
+            // Validação no Supabase para garantir se o usuário foi bloqueado
+            if (sessao.user && sessao.user.email !== EMAIL_ADMIN_ME) {
+              const { data: users, error } = await db.from('perfis_usuarios').select('*').eq('email', sessao.user.email);
+              if (error || !users || users.length === 0 || users[0].status === 'bloqueado' || users[0].status === 'pendente') {
+                alert('⚠️ Acesso Negado: Seu usuário foi BLOQUEADO ou está pendente pelo Administrador.');
+                fazerLogout();
+                return;
+              }
+              usuarioAtual = users[0]; // Usa o perfil atualizado do BD
+            } else {
+              usuarioAtual = sessao.user;
+            }
+
             document.getElementById('auth-modal').classList.remove('active');
-            inicializarAppComUsuario();
+            await inicializarAppComUsuario();
             return;
           }
         } catch(e) {}
@@ -853,6 +919,11 @@
       renderizarEquipe();
       atualizarFinanceiro();
       renderizarHistoricoVendas();
+      renderizarRelatorioVendedores();
+      
+      // Executa diagnósticos de IA na inicialização
+      gerarDiagnosticoEstoqueIA();
+      gerarDiagnosticoFinanceiroIA();
     }
 
     // --- AUTH FLOW ---
@@ -915,7 +986,7 @@
       }
 
       if (usr.status === 'bloqueado') {
-        return alert('Seu acesso foi bloqueado.');
+        return alert('⛔ ACESSO BLOQUEADO: Seu usuário foi bloqueado pelo Administrador.');
       }
 
       usuarioAtual = usr;
@@ -949,7 +1020,6 @@
       document.getElementById('login-email').value = email;
     }
 
-    // CONFIRMAÇÃO DE IDENTIDADE PARA RECUPERAÇÃO DE SENHA
     async function processarRecuperacaoSenha() {
       const email = document.getElementById('reset-email').value.trim();
       const nomeVerificacao = document.getElementById('reset-nome-verificacao').value.trim().toLowerCase();
@@ -966,7 +1036,6 @@
       }
 
       const usr = users[0];
-      // Valida se o nome bate com o cadastro para garantir que é a pessoa
       if (usr.nome.trim().toLowerCase() !== nomeVerificacao) {
         return alert('Validação de Identidade Falhou! O nome digitado não corresponde ao cadastro deste e-mail.');
       }
@@ -1004,7 +1073,6 @@
       if (nova !== confirm) return alert('As novas senhas não coincidem.');
       if (nova.length < 6) return alert('A nova senha deve ter no mínimo 6 caracteres.');
 
-      // Verifica no BD se a senha atual confere
       const { data: users } = await db.from('perfis_usuarios').select('*').eq('id', usuarioAtual.id);
       if (users && users[0] && users[0].senha !== atual) {
         return alert('Sua senha atual está incorreta!');
@@ -1032,6 +1100,10 @@
       if (aba === 'financeiro') {
         renderizarGrafico();
         renderizarHistoricoVendas();
+        renderizarRelatorioVendedores();
+        gerarDiagnosticoFinanceiroIA();
+      } else if (aba === 'estoque') {
+        gerarDiagnosticoEstoqueIA();
       }
     }
 
@@ -1055,6 +1127,113 @@
     async function carregarUsuarios() {
       const { data } = await db.from('perfis_usuarios').select('*').order('created_at', { ascending: false });
       if (data) usuariosList = data || [];
+    }
+
+    // --- ANÁLISE COMPLETA DE IA DEDICADA ---
+
+    function gerarDiagnosticoEstoqueIA() {
+      const target = document.getElementById('ai-estoque-result');
+      if (!produtos || produtos.length === 0) {
+        target.innerHTML = "Nenhum produto cadastrado para análise.";
+        return;
+      }
+
+      const zerados = produtos.filter(p => p.estoque === 0);
+      const criticos = produtos.filter(p => p.estoque > 0 && p.estoque <= 5);
+      const altaMargem = [...produtos].sort((a,b) => (b.preco - b.custo) - (a.preco - a.custo))[0];
+
+      let html = `<p><strong>Análise de Reposição & Giro de Estoque:</strong></p><ul>`;
+
+      if (zerados.length > 0) {
+        html += `<li style="color:var(--color-alert-danger);">🚨 <strong>ESTOQUE ZERADO:</strong> ${zerados.map(p => p.nome).join(', ')}. Necessário compra imediata!</li>`;
+      } else {
+        html += `<li>✅ Nenhum produto totalmente esgotado no momento.</li>`;
+      }
+
+      if (criticos.length > 0) {
+        html += `<li style="color:var(--color-alert-warning);">⚠️ <strong>NÍVEL CRÍTICO (≤5 un):</strong> ${criticos.map(p => `${p.nome} (${p.estoque} un)`).join(', ')}. Sugere-se pedido de reposição.</li>`;
+      } else {
+        html += `<li>📦 Níveis de estoque regularizados acima do limite mínimo de segurança.</li>`;
+      }
+
+      if (altaMargem) {
+        const margemLucro = (((altaMargem.preco - altaMargem.custo) / altaMargem.preco) * 100).toFixed(0);
+        html += `<li>💡 <strong>DESTAQUE DE MARGEM:</strong> <strong>${altaMargem.nome}</strong> gera a maior margem líquida da distribuidora (<strong>${margemLucro}% de lucro</strong> por unidade). Garanta estoque no final de semana!</li>`;
+      }
+
+      html += `</ul>`;
+      target.innerHTML = html;
+    }
+
+    function gerarDiagnosticoFinanceiroIA() {
+      const target = document.getElementById('ai-financeiro-result');
+      if (!vendas || vendas.length === 0) {
+        target.innerHTML = "Ainda não há vendas registradas para calcular métricas financeiras de inteligência artificial.";
+        return;
+      }
+
+      const faturamento = vendas.reduce((s, v) => s + Number(v.total), 0);
+      const comissoes = vendas.reduce((s, v) => s + Number(v.comissao_total), 0);
+      const despesas = despesasExtras.filter(d => d.tipo === 'saida').reduce((s, d) => s + Number(d.valor), 0);
+      const cmvEstoque = faturamento * 0.45;
+      const lucroLiquido = faturamento - cmvEstoque - comissoes - despesas;
+      const margemLiquidaPct = faturamento > 0 ? ((lucroLiquido / faturamento) * 100).toFixed(1) : '0';
+      const ticketMedio = faturamento > 0 ? (faturamento / vendas.length).toFixed(2) : '0.00';
+
+      // Encontrar método de pagamento mais usado
+      const pagamentosCount = {};
+      vendas.forEach(v => {
+        pagamentosCount[v.forma_pagamento] = (pagamentosCount[v.forma_pagamento] || 0) + 1;
+      });
+      const topPagamento = Object.keys(pagamentosCount).reduce((a, b) => pagamentosCount[a] > pagamentosCount[b] ? a : b, 'Pix');
+
+      // Top Vendedor
+      const vendedorVendas = {};
+      vendas.forEach(v => {
+        const nome = v.vendedor_nome || 'Vendedor';
+        vendedorVendas[nome] = (vendedorVendas[nome] || 0) + Number(v.total);
+      });
+      const topVendedor = Object.keys(vendedorVendas).reduce((a, b) => vendedorVendas[a] > vendedorVendas[b] ? a : b, 'N/A');
+
+      let html = `<p><strong>Resumo de Saúde Financeira & Destaques:</strong></p><ul>`;
+      html += `<li>📈 <strong>Margem Líquida Real:</strong> <strong>${margemLiquidaPct}%</strong> (${lucroLiquido >= 0 ? 'Lucrativo' : 'Atenção aos Custos'}).</li>`;
+      html += `<li>🏷️ <strong>Ticket Médio por Venda:</strong> <strong>R$ ${ticketMedio}</strong> em ${vendas.length} transações finalizadas.</li>`;
+      html += `<li>💳 <strong>Forma de Pagamento Principal:</strong> <strong>${topPagamento}</strong> (${pagamentosCount[topPagamento]} vendas). Maior liquidez imediata.</li>`;
+      html += `<li>🏆 <strong>Líder em Vendas:</strong> <strong>${topVendedor}</strong> gerou R$ ${Number(vendedorVendas[topVendedor] || 0).toFixed(2)} em faturamento.</li>`;
+      html += `</ul>`;
+
+      target.innerHTML = html;
+    }
+
+    // --- RELATÓRIO DE VENDEDORES & COMISSÕES ---
+
+    function renderizarRelatorioVendedores() {
+      const tbody = document.getElementById('tabela-vendedores-comissoes');
+      if (!vendas || vendas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-text-muted);">Nenhuma venda registrada ainda.</td></tr>';
+        return;
+      }
+
+      const resumo = {};
+
+      vendas.forEach(v => {
+        const nome = v.vendedor_nome || 'Não Identificado';
+        if (!resumo[nome]) {
+          resumo[nome] = { qtd: 0, total: 0, comissao: 0 };
+        }
+        resumo[nome].qtd += 1;
+        resumo[nome].total += Number(v.total);
+        resumo[nome].comissao += Number(v.comissao_total || 0);
+      });
+
+      tbody.innerHTML = Object.keys(resumo).map(vendedor => `
+        <tr>
+          <td><strong>${vendedor}</strong></td>
+          <td>${resumo[vendedor].qtd} vendas</td>
+          <td style="color: var(--color-primary); font-weight:700;">R$ ${resumo[vendedor].total.toFixed(2)}</td>
+          <td style="color: var(--color-alert-warning); font-weight:700;">R$ ${resumo[vendedor].comissao.toFixed(2)}</td>
+        </tr>
+      `).join('');
     }
 
     // --- VENDAS & PDV ---
@@ -1215,6 +1394,9 @@
       renderizarEstoque();
       atualizarFinanceiro();
       renderizarHistoricoVendas();
+      renderizarRelatorioVendedores();
+      gerarDiagnosticoEstoqueIA();
+      gerarDiagnosticoFinanceiroIA();
     }
 
     function fecharCaixaDoDia() {
@@ -1268,6 +1450,8 @@
       await carregarVendas();
       atualizarFinanceiro();
       renderizarHistoricoVendas();
+      renderizarRelatorioVendedores();
+      gerarDiagnosticoFinanceiroIA();
     }
 
     async function resetarTodasVendasTotalmente() {
@@ -1286,6 +1470,8 @@
       await carregarDespesasExtras();
       atualizarFinanceiro();
       renderizarHistoricoVendas();
+      renderizarRelatorioVendedores();
+      gerarDiagnosticoFinanceiroIA();
     }
 
     // --- ESTOQUE ---
@@ -1322,6 +1508,7 @@
       await carregarProdutos();
       renderizarEstoque();
       renderizarVendas();
+      gerarDiagnosticoEstoqueIA();
     }
 
     function editarProduto(id) {
@@ -1346,6 +1533,7 @@
         await carregarProdutos();
         renderizarEstoque();
         renderizarVendas();
+        gerarDiagnosticoEstoqueIA();
       }
     }
 
@@ -1370,6 +1558,7 @@
       await carregarProdutos();
       renderizarEstoque();
       renderizarVendas();
+      gerarDiagnosticoEstoqueIA();
     }
 
     // --- FINANCEIRO & GRÁFICOS ---
@@ -1452,14 +1641,7 @@
       fecharModais();
       await carregarDespesasExtras();
       atualizarFinanceiro();
-    }
-
-    async function gerarDiagnosticoFinanceiroIA() {
-      alert("🤖 Análise Gemini: Margem média saudável de 55%. Mantenha o foco nas vendas Pix para menor custo de taxa.");
-    }
-
-    async function gerarDiagnosticoEstoqueIA() {
-      alert("⚠️ Alerta Gemini: Verifique o estoque de energéticos Baly antes do final de semana!");
+      gerarDiagnosticoFinanceiroIA();
     }
 
     // --- EQUIPE ---
@@ -1500,8 +1682,8 @@
               ${u.status === 'ativo' ? 'Ativo' : 'Bloqueado'}
             </span>
             ${u.email !== EMAIL_ADMIN_ME ? `
-              <button class="btn btn-secondary btn-sm" onclick="alternarStatusUsuario('${u.id}', '${u.status}')">
-                ${u.status === 'ativo' ? 'Bloquear' : 'Desbloquear'}
+              <button class="btn ${u.status === 'ativo' ? 'btn-danger' : 'btn-secondary'} btn-sm" onclick="alternarStatusUsuario('${u.id}', '${u.status}')">
+                ${u.status === 'ativo' ? '🚫 Bloquear' : '✅ Desbloquear'}
               </button>
             ` : ''}
           </div>
@@ -1525,7 +1707,11 @@
 
     async function alternarStatusUsuario(id, statusAtual) {
       const novoStatus = statusAtual === 'ativo' ? 'bloqueado' : 'ativo';
-      await db.from('perfis_usuarios').update({ status: novoStatus }).eq('id', id);
+      const { error } = await db.from('perfis_usuarios').update({ status: novoStatus }).eq('id', id);
+      if (error) {
+        return alert('Erro ao alterar status do colaborador.');
+      }
+      alert(`Status do usuário alterado para: ${novoStatus.toUpperCase()}`);
       await carregarUsuarios();
       renderizarEquipe();
     }
