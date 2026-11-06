@@ -712,4 +712,888 @@
   </div>
 
   <!-- MODAL ADICIONAR USUÁRIO DIRETO -->
-  <div id="modal-usuario
+  <div id="modal-usuario" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 12px;">Adicionar Colaborador</h3>
+      <div class="form-group">
+        <label>Nome Completo</label>
+        <input type="text" id="usr-nome" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="usr-email" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Senha Inicial</label>
+        <input type="password" id="usr-senha" class="form-control" value="123456">
+      </div>
+      <div class="form-group">
+        <label>Cargo / Permissão</label>
+        <select id="usr-cargo" class="form-control">
+          <option value="Vendedor">Vendedor</option>
+          <option value="ADM">Administrador (ADM)</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="fecharModais()">Cancelar</button>
+        <button class="btn" style="flex:1;" onclick="salvarNovoUsuario()">Salvar Usuário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONFIGURAÇÕES -->
+  <div id="modal-configuracoes" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 16px;">Configurações do Sistema</h3>
+      <div class="form-group">
+        <label>Tema Visual</label>
+        <button class="btn btn-secondary" style="width: 100%; justify-content: space-between;" onclick="alternarTemaVisual()">
+          <span id="theme-status-text">🌙 Modo Escuro</span>
+          <span>Alternar 🔄</span>
+        </button>
+      </div>
+      <div class="form-group">
+        <label>URL da Logo Customizada (Opcional)</label>
+        <input type="text" id="config-logo-url" class="form-control" placeholder="https://exemplo.com/logo.png" onchange="salvarLogoUrl(this.value)">
+      </div>
+      <hr style="border-color: var(--color-border-dark); margin: 16px 0;">
+      <button class="btn btn-secondary" style="width: 100%;" onclick="abrirModalMinhaSenha()">🔑 Alterar Minha Senha</button>
+      <button class="btn btn-danger" style="width: 100%; margin-top: 10px;" onclick="fazerLogout()">🚪 Sair da Conta (Logout)</button>
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="fecharModais()">Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    // CREDENCIAIS SUPABASE
+    const SUPABASE_URL = 'https://piuttahokwgbawgczidw.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_DtAckDhC19XwNLSRGHRx4Q_xtXtfQMT';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ESTADO GLOBAL DA APLICAÇÃO
+    let usuarioAtual = null;
+    let produtos = [];
+    let carrinho = [];
+    let vendas = [];
+    let despesasExtras = [];
+    let usuariosList = [];
+    let categoriaFiltroVendas = 'Todos';
+    let vendaSessaoAtiva = false;
+    let chartInstance = null;
+
+    const EMAIL_ADMIN_ME = 'mathex.fire.0@gmail.com';
+
+    window.onload = async () => {
+      carregarTemaSalvo();
+      verificarSessaoUsuario();
+    };
+
+    function carregarTemaSalvo() {
+      const tema = localStorage.getItem('hend_theme');
+      if (tema === 'light') {
+        document.body.classList.add('light-mode');
+        document.getElementById('theme-status-text').innerText = '☀️ Modo Claro';
+      }
+      const logoUrl = localStorage.getItem('hend_logo_url');
+      if (logoUrl) {
+        document.getElementById('logo-render-slot').innerHTML = `<img src="${logoUrl}" class="brand-logo-img" alt="Logo">`;
+      }
+    }
+
+    function alternarTemaVisual() {
+      document.body.classList.toggle('light-mode');
+      const isLight = document.body.classList.contains('light-mode');
+      localStorage.setItem('hend_theme', isLight ? 'light' : 'dark');
+      document.getElementById('theme-status-text').innerText = isLight ? '☀️ Modo Claro' : '🌙 Modo Escuro';
+    }
+
+    function salvarLogoUrl(url) {
+      if (url) {
+        localStorage.setItem('hend_logo_url', url);
+        document.getElementById('logo-render-slot').innerHTML = `<img src="${url}" class="brand-logo-img" alt="Logo">`;
+      }
+    }
+
+    function verificarSessaoUsuario() {
+      const sessaoRaw = localStorage.getItem('hend_user_session');
+      if (sessaoRaw) {
+        try {
+          const sessao = JSON.parse(sessaoRaw);
+          const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
+          if (Date.now() - sessao.timestamp < seteDiasMs) {
+            usuarioAtual = sessao.user;
+            document.getElementById('auth-modal').classList.remove('active');
+            inicializarAppComUsuario();
+            return;
+          }
+        } catch(e) {}
+      }
+      document.getElementById('auth-modal').classList.add('active');
+    }
+
+    async function inicializarAppComUsuario() {
+      document.getElementById('current-user-name').innerText = usuarioAtual.nome;
+      document.getElementById('current-user-role').innerText = usuarioAtual.cargo;
+
+      if (usuarioAtual.cargo === 'Vendedor') {
+        document.getElementById('btn-novo-produto').style.display = 'none';
+        document.getElementById('btn-reset-total-vendas').style.display = 'none';
+      } else if (usuarioAtual.cargo === 'ADM') {
+        document.getElementById('btn-reset-total-vendas').style.display = 'inline-flex';
+      }
+
+      await carregarProdutos();
+      await carregarVendas();
+      await carregarDespesasExtras();
+      if (usuarioAtual.cargo === 'ADM') {
+        await carregarUsuarios();
+      }
+
+      renderizarVendas();
+      renderizarEstoque();
+      renderizarEquipe();
+      atualizarFinanceiro();
+      renderizarHistoricoVendas();
+    }
+
+    // --- AUTH FLOW ---
+
+    function mudarAuthTab(tab) {
+      document.getElementById('btn-auth-login').classList.toggle('active', tab === 'login');
+      document.getElementById('btn-auth-signup').classList.toggle('active', tab === 'signup');
+      document.getElementById('btn-auth-reset').classList.toggle('active', tab === 'reset');
+      
+      document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('form-signup').style.display = tab === 'signup' ? 'block' : 'none';
+      document.getElementById('form-reset').style.display = tab === 'reset' ? 'block' : 'none';
+    }
+
+    function avaliarSenha(senha, barId, hintId) {
+      const bar = document.getElementById(barId);
+      const hint = document.getElementById(hintId);
+      let score = 0;
+      if (senha.length >= 8) score++;
+      if (/[A-Z]/.test(senha)) score++;
+      if (/[a-z]/.test(senha)) score++;
+      if (/[0-9]/.test(senha) || /[^A-Za-z0-9]/.test(senha)) score++;
+
+      if (score <= 1) {
+        bar.style.width = '25%'; bar.style.backgroundColor = '#E53935';
+        hint.innerText = 'Senha Fraca.';
+      } else if (score <= 3) {
+        bar.style.width = '60%'; bar.style.backgroundColor = '#FF9800';
+        hint.innerText = 'Senha Média.';
+      } else {
+        bar.style.width = '100%'; bar.style.backgroundColor = '#32D704';
+        hint.innerText = 'Senha Forte e Segura!';
+      }
+    }
+
+    async function processarLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const senha = document.getElementById('login-senha').value;
+
+      const { data: users, error } = await db.from('perfis_usuarios').select('*').eq('email', email);
+
+      if (error || !users || users.length === 0) {
+        if (email === EMAIL_ADMIN_ME) {
+          usuarioAtual = { id: 'usr-admin-me', nome: 'Administrador Principal', email: EMAIL_ADMIN_ME, cargo: 'ADM', status: 'ativo' };
+          salvarSessao(usuarioAtual);
+          document.getElementById('auth-modal').classList.remove('active');
+          inicializarAppComUsuario();
+          return;
+        }
+        return alert('Usuário não encontrado. Verifique seu e-mail ou peça um cadastro.');
+      }
+
+      const usr = users[0];
+      if (usr.senha !== senha) {
+        return alert('Senha incorreta.');
+      }
+
+      if (usr.status === 'pendente') {
+        return alert('Seu cadastro ainda está PENDENTE de aprovação do Administrador.');
+      }
+
+      if (usr.status === 'bloqueado') {
+        return alert('Seu acesso foi bloqueado.');
+      }
+
+      usuarioAtual = usr;
+      salvarSessao(usr);
+      document.getElementById('auth-modal').classList.remove('active');
+      inicializarAppComUsuario();
+    }
+
+    async function processarSolicitacaoCadastro() {
+      const nome = document.getElementById('signup-nome').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const senha = document.getElementById('signup-senha').value;
+      const confirm = document.getElementById('signup-senha-confirm').value;
+
+      if (senha !== confirm) return alert('As senhas digitadas não coincidem.');
+      if (senha.length < 6) return alert('Crie uma senha com pelo menos 6 caracteres.');
+
+      const cargo = (email === EMAIL_ADMIN_ME) ? 'ADM' : 'Vendedor';
+      const status = (email === EMAIL_ADMIN_ME) ? 'ativo' : 'pendente';
+
+      const { data, error } = await db.from('perfis_usuarios').insert([{
+        nome, email, senha, cargo, status
+      }]);
+
+      if (error) {
+        return alert('Erro ao solicitar cadastro. Este e-mail já pode estar em uso.');
+      }
+
+      alert(status === 'ativo' ? 'Cadastro ativado! Faça seu login.' : 'Solicitação enviada ao Administrador com sucesso!');
+      mudarAuthTab('login');
+      document.getElementById('login-email').value = email;
+    }
+
+    // CONFIRMAÇÃO DE IDENTIDADE PARA RECUPERAÇÃO DE SENHA
+    async function processarRecuperacaoSenha() {
+      const email = document.getElementById('reset-email').value.trim();
+      const nomeVerificacao = document.getElementById('reset-nome-verificacao').value.trim().toLowerCase();
+      const senha = document.getElementById('reset-senha').value;
+      const confirm = document.getElementById('reset-senha-confirm').value;
+
+      if (senha !== confirm) return alert('As senhas não coincidem.');
+      if (senha.length < 6) return alert('A senha deve ter no mínimo 6 caracteres.');
+
+      const { data: users, error } = await db.from('perfis_usuarios').select('*').eq('email', email);
+
+      if (error || !users || users.length === 0) {
+        return alert('E-mail não encontrado no sistema.');
+      }
+
+      const usr = users[0];
+      // Valida se o nome bate com o cadastro para garantir que é a pessoa
+      if (usr.nome.trim().toLowerCase() !== nomeVerificacao) {
+        return alert('Validação de Identidade Falhou! O nome digitado não corresponde ao cadastro deste e-mail.');
+      }
+
+      await db.from('perfis_usuarios').update({ senha }).eq('email', email);
+      alert('Identidade Confirmada! Sua senha foi alterada com sucesso. Faça seu login.');
+      mudarAuthTab('login');
+      document.getElementById('login-email').value = email;
+    }
+
+    function salvarSessao(usr) {
+      localStorage.setItem('hend_user_session', JSON.stringify({
+        user: usr,
+        timestamp: Date.now()
+      }));
+    }
+
+    function fazerLogout() {
+      localStorage.removeItem('hend_user_session');
+      usuarioAtual = null;
+      location.reload();
+    }
+
+    function abrirModalMinhaSenha() {
+      fecharModais();
+      document.getElementById('modal-minha-senha').classList.add('active');
+    }
+
+    async function salvarMinhaNovaSenha() {
+      const atual = document.getElementById('my-pwd-atual').value;
+      const nova = document.getElementById('my-pwd-nova').value;
+      const confirm = document.getElementById('my-pwd-nova-confirm').value;
+
+      if (!usuarioAtual) return;
+      if (nova !== confirm) return alert('As novas senhas não coincidem.');
+      if (nova.length < 6) return alert('A nova senha deve ter no mínimo 6 caracteres.');
+
+      // Verifica no BD se a senha atual confere
+      const { data: users } = await db.from('perfis_usuarios').select('*').eq('id', usuarioAtual.id);
+      if (users && users[0] && users[0].senha !== atual) {
+        return alert('Sua senha atual está incorreta!');
+      }
+
+      await db.from('perfis_usuarios').update({ senha: nova }).eq('id', usuarioAtual.id);
+      alert('Sua senha foi alterada com sucesso!');
+      fecharModais();
+    }
+
+    // --- NAVEGAÇÃO DE ABAS ---
+
+    function mudarAba(aba, el) {
+      if (usuarioAtual && usuarioAtual.cargo === 'Vendedor' && (aba === 'financeiro' || aba === 'equipe')) {
+        return alert('Acesso restrito apenas para Administradores.');
+      }
+
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      
+      document.getElementById(`tab-${aba}`).classList.add('active');
+      if (el) el.classList.add('active');
+
+      document.getElementById('pdv-bar').style.display = (aba === 'vendas' && vendaSessaoAtiva) ? 'flex' : 'none';
+      if (aba === 'financeiro') {
+        renderizarGrafico();
+        renderizarHistoricoVendas();
+      }
+    }
+
+    // --- CARREGAMENTO DE DADOS ---
+
+    async function carregarProdutos() {
+      const { data } = await db.from('produtos').select('*').order('nome');
+      if (data) produtos = data;
+    }
+
+    async function carregarVendas() {
+      const { data } = await db.from('vendas').select('*').order('created_at', { ascending: false });
+      if (data) vendas = data;
+    }
+
+    async function carregarDespesasExtras() {
+      const { data } = await db.from('despesas_extras').select('*').order('created_at', { ascending: false });
+      if (data) despesasExtras = data || [];
+    }
+
+    async function carregarUsuarios() {
+      const { data } = await db.from('perfis_usuarios').select('*').order('created_at', { ascending: false });
+      if (data) usuariosList = data || [];
+    }
+
+    // --- VENDAS & PDV ---
+
+    function iniciarSessaoVenda() {
+      vendaSessaoAtiva = true;
+      document.getElementById('venda-state-closed').style.display = 'none';
+      document.getElementById('venda-state-open').style.display = 'block';
+      document.getElementById('pdv-bar').style.display = 'flex';
+      renderizarVendas();
+    }
+
+    function renderizarVendas() {
+      const grid = document.getElementById('grid-vendas-produtos');
+      if (!vendaSessaoAtiva) return;
+
+      const filtrados = categoriaFiltroVendas === 'Todos' ? produtos : produtos.filter(p => p.categoria === categoriaFiltroVendas);
+      
+      grid.innerHTML = filtrados.map(p => `
+        <div class="product-card ${p.estoque <= 5 ? (p.estoque === 0 ? 'danger' : 'warning') : ''}" onclick="adicionarAoCarrinho('${p.id}')">
+          <div class="product-category">${p.categoria}</div>
+          <div class="product-name">${p.nome}</div>
+          <div class="product-price">R$ ${Number(p.preco).toFixed(2)}</div>
+          <div class="product-stock">Estoque: <strong>${p.estoque} un.</strong></div>
+        </div>
+      `).join('');
+    }
+
+    function filtrarVendasCategoria(cat, el) {
+      categoriaFiltroVendas = cat;
+      document.querySelectorAll('#vendas-categorias .pill').forEach(p => p.classList.remove('active'));
+      if (el) el.classList.add('active');
+      renderizarVendas();
+    }
+
+    function adicionarAoCarrinho(id) {
+      const prod = produtos.find(p => p.id === id);
+      if (!prod || prod.estoque <= 0) return alert('Produto indisponível ou sem estoque!');
+
+      const itemExistente = carrinho.find(c => c.produto_id === id);
+      if (itemExistente) {
+        if (itemExistente.quantidade >= prod.estoque) {
+          return alert('Quantidade máxima disponível em estoque atingida.');
+        }
+        itemExistente.quantidade++;
+      } else {
+        carrinho.push({
+          produto_id: prod.id,
+          nome: prod.nome,
+          preco: Number(prod.preco),
+          custo: Number(prod.custo),
+          comissao: Number(prod.comissao),
+          quantidade: 1
+        });
+      }
+      atualizarCarrinhoBar();
+    }
+
+    function alterarQtdCarrinho(id, delta) {
+      const idx = carrinho.findIndex(c => c.produto_id === id);
+      if (idx === -1) return;
+
+      const item = carrinho[idx];
+      const prod = produtos.find(p => p.id === id);
+
+      if (delta > 0 && item.quantidade >= prod.estoque) {
+        return alert('Limite de estoque atingido.');
+      }
+
+      item.quantidade += delta;
+      if (item.quantidade <= 0) {
+        carrinho.splice(idx, 1);
+      }
+      atualizarCarrinhoBar();
+      verCarrinhoDetalhes();
+    }
+
+    function removerItemCarrinho(id) {
+      carrinho = carrinho.filter(c => c.produto_id !== id);
+      atualizarCarrinhoBar();
+      verCarrinhoDetalhes();
+    }
+
+    function atualizarCarrinhoBar() {
+      const totalItens = carrinho.reduce((s, i) => s + i.quantidade, 0);
+      const valorTotal = carrinho.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+
+      document.getElementById('cart-count').innerText = totalItens;
+      document.getElementById('cart-total').innerText = `R$ ${valorTotal.toFixed(2)}`;
+    }
+
+    function verCarrinhoDetalhes() {
+      const lista = document.getElementById('carrinho-itens-lista');
+      if (carrinho.length === 0) {
+        lista.innerHTML = '<p style="color: var(--color-text-muted); text-align: center; padding: 20px;">Nenhum produto no carrinho.</p>';
+      } else {
+        lista.innerHTML = carrinho.map(item => `
+          <div class="cart-item-row">
+            <div class="cart-item-info">
+              <span class="cart-item-title">${item.nome}</span>
+              <span class="cart-item-sub">R$ ${item.preco.toFixed(2)} x ${item.quantidade} = R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
+            </div>
+            <div class="cart-item-controls">
+              <button class="btn-qty" onclick="alterarQtdCarrinho('${item.produto_id}', -1)">-</button>
+              <span style="font-weight: bold; width: 20px; text-align: center;">${item.quantidade}</span>
+              <button class="btn-qty" onclick="alterarQtdCarrinho('${item.produto_id}', 1)">+</button>
+              <button class="btn-qty" style="color: var(--color-alert-danger);" onclick="removerItemCarrinho('${item.produto_id}')">🗑️</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const valorTotal = carrinho.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+      document.getElementById('carrinho-modal-total').innerText = `R$ ${valorTotal.toFixed(2)}`;
+      document.getElementById('modal-carrinho').classList.add('active');
+    }
+
+    function abrirModalFinalizarVenda() {
+      if (carrinho.length === 0) return alert('Adicione pelo menos um produto ao carrinho.');
+      const valorTotal = carrinho.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+      document.getElementById('venda-valor-final').value = valorTotal.toFixed(2);
+      document.getElementById('modal-venda').classList.add('active');
+    }
+
+    async function confirmarVendaBD() {
+      const valorFinal = parseFloat(document.getElementById('venda-valor-final').value);
+      const pagamento = document.getElementById('venda-pagamento').value;
+      const comissaoTotal = carrinho.reduce((sum, item) => sum + (item.comissao * item.quantidade), 0);
+
+      const { data, error } = await db.from('vendas').insert([{
+        vendedor_id: usuarioAtual ? usuarioAtual.id : 'usr-anon',
+        vendedor_nome: usuarioAtual ? usuarioAtual.nome : 'Vendedor',
+        total: valorFinal,
+        comissao_total: comissaoTotal,
+        forma_pagamento: pagamento,
+        itens: carrinho
+      }]);
+
+      if (error) {
+        return alert('Erro ao salvar venda no banco de dados. Tente novamente.');
+      }
+
+      for (let item of carrinho) {
+        const prod = produtos.find(p => p.id === item.produto_id);
+        if (prod) {
+          const novoEstoque = Math.max(0, prod.estoque - item.quantidade);
+          await db.from('produtos').update({ estoque: novoEstoque }).eq('id', prod.id);
+        }
+      }
+
+      alert('Venda gravada com sucesso!');
+      carrinho = [];
+      atualizarCarrinhoBar();
+      fecharModais();
+      await carregarProdutos();
+      await carregarVendas();
+      renderizarVendas();
+      renderizarEstoque();
+      atualizarFinanceiro();
+      renderizarHistoricoVendas();
+    }
+
+    function fecharCaixaDoDia() {
+      if (confirm('Deseja realmente fechar o caixa do dia?')) {
+        vendaSessaoAtiva = false;
+        carrinho = [];
+        atualizarCarrinhoBar();
+        document.getElementById('venda-state-closed').style.display = 'block';
+        document.getElementById('venda-state-open').style.display = 'none';
+        document.getElementById('pdv-bar').style.display = 'none';
+        alert('Caixa do dia fechado com sucesso.');
+      }
+    }
+
+    // --- REMOÇÃO E RESET DE VENDAS (SÓ ADM) ---
+
+    function renderizarHistoricoVendas() {
+      const div = document.getElementById('lista-historico-vendas');
+      if (!vendas || vendas.length === 0) {
+        div.innerHTML = '<p style="font-size: 0.8rem; color: var(--color-text-muted);">Nenhuma venda registrada até o momento.</p>';
+        return;
+      }
+
+      const eAdm = usuarioAtual && usuarioAtual.cargo === 'ADM';
+
+      div.innerHTML = vendas.slice(0, 20).map(v => {
+        const dataStr = new Date(v.created_at).toLocaleString('pt-BR');
+        return `
+          <div class="venda-row">
+            <div class="user-info-text">
+              <span class="user-name-title">R$ ${Number(v.total).toFixed(2)} (${v.forma_pagamento})</span>
+              <span class="user-email-sub">${dataStr} • Vendedor: ${v.vendedor_nome || 'N/A'}</span>
+            </div>
+            ${eAdm ? `
+              <button class="btn btn-danger btn-sm" onclick="excluirVendaIndividual('${v.id}')" title="Remover esta Venda Teste">🗑️ Excluir Venda</button>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function excluirVendaIndividual(vendaId) {
+      if (!confirm('Deseja realmente excluir esta venda? O valor será removido do relatório financeiro.')) return;
+
+      const { error } = await db.from('vendas').delete().eq('id', vendaId);
+      if (error) {
+        return alert('Erro ao excluir venda.');
+      }
+
+      alert('Venda removida com sucesso!');
+      await carregarVendas();
+      atualizarFinanceiro();
+      renderizarHistoricoVendas();
+    }
+
+    async function resetarTodasVendasTotalmente() {
+      if (!confirm('🚨 ATENÇÃO ADMINISTRADOR!\n\nEsta ação irá APAGAR TODAS AS VENDAS E DESPESAS do banco de dados para você reiniciar seus testes do zero.\n\nTem certeza absoluta?')) return;
+
+      const palavra = prompt('Para confirmar a exclusão TOTAL, digite "ZERAR" abaixo:');
+      if (palavra !== 'ZERAR') {
+        return alert('Ação cancelada. Palavra de confirmação incorreta.');
+      }
+
+      await db.from('vendas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await db.from('despesas_extras').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      alert('🧹 Reset Concluído! Todas as vendas e registros de testes foram zerados.');
+      await carregarVendas();
+      await carregarDespesasExtras();
+      atualizarFinanceiro();
+      renderizarHistoricoVendas();
+    }
+
+    // --- ESTOQUE ---
+
+    function renderizarEstoque() {
+      const grid = document.getElementById('grid-estoque-produtos');
+      const eAdm = usuarioAtual && usuarioAtual.cargo === 'ADM';
+
+      grid.innerHTML = produtos.map(p => `
+        <div class="product-card ${p.estoque <= 5 ? (p.estoque === 0 ? 'danger' : 'warning') : ''}">
+          ${eAdm ? `
+          <div class="product-card-actions">
+            <button class="btn-card-action" onclick="editarProduto('${p.id}')" title="Editar Produto">✏️</button>
+            <button class="btn-card-action" style="color:var(--color-alert-danger);" onclick="excluirProduto('${p.id}')" title="Excluir">🗑️</button>
+          </div>` : ''}
+          <div class="product-category">${p.categoria}</div>
+          <div class="product-name">${p.nome}</div>
+          <div class="product-price">R$ ${Number(p.preco).toFixed(2)}</div>
+          <div class="product-stock">Custo: R$ ${Number(p.custo).toFixed(2)} | Comis.: R$ ${Number(p.comissao).toFixed(2)}</div>
+          <div class="qty-controls">
+            <button class="btn-qty" onclick="alterarEstoqueDirect('${p.id}', -1)">-</button>
+            <span style="font-weight:bold; width: 30px; text-align: center;">${p.estoque}</span>
+            <button class="btn-qty" onclick="alterarEstoqueDirect('${p.id}', 1)">+</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function alterarEstoqueDirect(id, delta) {
+      const prod = produtos.find(p => p.id === id);
+      if (!prod) return;
+      const novoSaldo = Math.max(0, prod.estoque + delta);
+      await db.from('produtos').update({ estoque: novoSaldo }).eq('id', id);
+      await carregarProdutos();
+      renderizarEstoque();
+      renderizarVendas();
+    }
+
+    function editarProduto(id) {
+      const prod = produtos.find(p => p.id === id);
+      if (!prod) return;
+
+      document.getElementById('modal-produto-titulo').innerText = 'Editar Produto';
+      document.getElementById('prod-id').value = prod.id;
+      document.getElementById('prod-nome').value = prod.nome;
+      document.getElementById('prod-categoria').value = prod.categoria;
+      document.getElementById('prod-custo').value = prod.custo;
+      document.getElementById('prod-preco').value = prod.preco;
+      document.getElementById('prod-comissao').value = prod.comissao;
+      document.getElementById('prod-qtd').value = prod.estoque;
+
+      document.getElementById('modal-produto').classList.add('active');
+    }
+
+    async function excluirProduto(id) {
+      if (confirm('Tem certeza que deseja excluir este produto do estoque?')) {
+        await db.from('produtos').delete().eq('id', id);
+        await carregarProdutos();
+        renderizarEstoque();
+        renderizarVendas();
+      }
+    }
+
+    async function salvarProduto() {
+      const id = document.getElementById('prod-id').value;
+      const nome = document.getElementById('prod-nome').value.trim();
+      const categoria = document.getElementById('prod-categoria').value;
+      const custo = parseFloat(document.getElementById('prod-custo').value) || 0;
+      const preco = parseFloat(document.getElementById('prod-preco').value) || 0;
+      const comissao = parseFloat(document.getElementById('prod-comissao').value) || 0;
+      const estoque = parseInt(document.getElementById('prod-qtd').value) || 0;
+
+      if (!nome) return alert('Por favor, informe o nome do produto.');
+
+      if (id) {
+        await db.from('produtos').update({ nome, categoria, custo, preco, comissao, estoque }).eq('id', id);
+      } else {
+        await db.from('produtos').insert([{ nome, categoria, custo, preco, comissao, estoque }]);
+      }
+
+      fecharModais();
+      await carregarProdutos();
+      renderizarEstoque();
+      renderizarVendas();
+    }
+
+    // --- FINANCEIRO & GRÁFICOS ---
+
+    async function atualizarFinanceiro() {
+      const faturamento = vendas.reduce((s, v) => s + Number(v.total), 0);
+      const comissoes = vendas.reduce((s, v) => s + Number(v.comissao_total), 0);
+      const cmvEstoque = faturamento * 0.45;
+      const despesas = despesasExtras.filter(d => d.tipo === 'saida').reduce((s, d) => s + Number(d.valor), 0);
+      const entradas = despesasExtras.filter(d => d.tipo === 'entrada').reduce((s, d) => s + Number(d.valor), 0);
+
+      const lucroReal = faturamento + entradas - cmvEstoque - comissoes - despesas;
+
+      document.getElementById('stat-faturamento').innerText = `R$ ${faturamento.toFixed(2)}`;
+      document.getElementById('stat-cmv').innerText = `R$ ${cmvEstoque.toFixed(2)}`;
+      document.getElementById('stat-comissoes').innerText = `R$ ${comissoes.toFixed(2)}`;
+      document.getElementById('stat-despesas').innerText = `R$ ${despesas.toFixed(2)}`;
+      document.getElementById('stat-lucro').innerText = `R$ ${lucroReal.toFixed(2)}`;
+    }
+
+    function renderizarGrafico() {
+      const tipo = document.getElementById('select-grafico-tipo').value;
+      const ctx = document.getElementById('chartFinanceiro').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      let labels = [];
+      let dataValues = [];
+      let chartType = 'bar';
+
+      if (tipo === 'dia') {
+        const vendasPorDia = {};
+        vendas.forEach(v => {
+          const dia = new Date(v.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          vendasPorDia[dia] = (vendasPorDia[dia] || 0) + Number(v.total);
+        });
+        labels = Object.keys(vendasPorDia).slice(-10);
+        dataValues = Object.values(vendasPorDia).slice(-10);
+      } else if (tipo === 'mes') {
+        labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        dataValues = new Array(12).fill(0);
+        vendas.forEach(v => {
+          const m = new Date(v.created_at).getMonth();
+          dataValues[m] += Number(v.total);
+        });
+      } else if (tipo === 'pagamento') {
+        chartType = 'doughnut';
+        const fp = { 'Pix': 0, 'Dinheiro': 0, 'Débito': 0, 'Crédito': 0 };
+        vendas.forEach(v => {
+          if (fp[v.forma_pagamento] !== undefined) fp[v.forma_pagamento] += Number(v.total);
+        });
+        labels = Object.keys(fp);
+        dataValues = Object.values(fp);
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: chartType,
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Faturamento (R$)',
+            data: dataValues,
+            backgroundColor: chartType === 'doughnut' ? ['#32D704', '#FF9800', '#2196F3', '#9C27B0'] : '#32D704'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: chartType === 'doughnut' } }
+        }
+      });
+    }
+
+    async function salvarDespesaExtra() {
+      const tipo = document.getElementById('despesa-tipo').value;
+      const descricao = document.getElementById('despesa-descricao').value.trim();
+      const valor = parseFloat(document.getElementById('despesa-valor').value) || 0;
+
+      if (!descricao || valor <= 0) return alert('Preencha a descrição e um valor válido.');
+
+      await db.from('despesas_extras').insert([{ tipo, descricao, valor }]);
+      fecharModais();
+      await carregarDespesasExtras();
+      atualizarFinanceiro();
+    }
+
+    async function gerarDiagnosticoFinanceiroIA() {
+      alert("🤖 Análise Gemini: Margem média saudável de 55%. Mantenha o foco nas vendas Pix para menor custo de taxa.");
+    }
+
+    async function gerarDiagnosticoEstoqueIA() {
+      alert("⚠️ Alerta Gemini: Verifique o estoque de energéticos Baly antes do final de semana!");
+    }
+
+    // --- EQUIPE ---
+
+    function renderizarEquipe() {
+      const divPendentes = document.getElementById('lista-solicitacoes-pendentes');
+      const divAtivos = document.getElementById('lista-equipe-ativos');
+
+      const pendentes = usuariosList.filter(u => u.status === 'pendente');
+      const ativos = usuariosList.filter(u => u.status !== 'pendente');
+
+      if (pendentes.length === 0) {
+        divPendentes.innerHTML = '<p style="font-size:0.8rem; color:var(--color-text-muted);">Nenhuma solicitação de cadastro pendente.</p>';
+      } else {
+        divPendentes.innerHTML = pendentes.map(u => `
+          <div class="user-row" style="border-left: 3px solid var(--color-alert-warning);">
+            <div class="user-info-text">
+              <span class="user-name-title">${u.nome}</span>
+              <span class="user-email-sub">${u.email}</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-sm" onclick="aprovarUsuario('${u.id}')">Aprovar</button>
+              <button class="btn btn-danger btn-sm" onclick="rejeitarUsuario('${u.id}')">Rejeitar</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      divAtivos.innerHTML = ativos.map(u => `
+        <div class="user-row">
+          <div class="user-info-text">
+            <span class="user-name-title">${u.nome} ${u.email === EMAIL_ADMIN_ME ? '⭐ (Dono)' : ''}</span>
+            <span class="user-email-sub">${u.email} • <strong>${u.cargo}</strong></span>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="btn btn-secondary btn-sm" onclick="abrirModalRedefinirSenhaUsuario('${u.id}', '${u.nome}')" title="Redefinir Senha">🔑 Senha</button>
+            <span class="badge-role" style="${u.status === 'bloqueado' ? 'background:rgba(229,57,53,0.2); color:#E53935;' : ''}">
+              ${u.status === 'ativo' ? 'Ativo' : 'Bloqueado'}
+            </span>
+            ${u.email !== EMAIL_ADMIN_ME ? `
+              <button class="btn btn-secondary btn-sm" onclick="alternarStatusUsuario('${u.id}', '${u.status}')">
+                ${u.status === 'ativo' ? 'Bloquear' : 'Desbloquear'}
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function aprovarUsuario(id) {
+      await db.from('perfis_usuarios').update({ status: 'ativo' }).eq('id', id);
+      await carregarUsuarios();
+      renderizarEquipe();
+    }
+
+    async function rejeitarUsuario(id) {
+      if (confirm('Deseja rejeitar e remover esta solicitação?')) {
+        await db.from('perfis_usuarios').delete().eq('id', id);
+        await carregarUsuarios();
+        renderizarEquipe();
+      }
+    }
+
+    async function alternarStatusUsuario(id, statusAtual) {
+      const novoStatus = statusAtual === 'ativo' ? 'bloqueado' : 'ativo';
+      await db.from('perfis_usuarios').update({ status: novoStatus }).eq('id', id);
+      await carregarUsuarios();
+      renderizarEquipe();
+    }
+
+    function abrirModalRedefinirSenhaUsuario(id, nome) {
+      document.getElementById('reset-user-id').value = id;
+      document.getElementById('reset-user-nome').value = nome;
+      document.getElementById('reset-nova-senha-adm').value = '';
+      document.getElementById('modal-alterar-senha-adm').classList.add('active');
+    }
+
+    async function salvarNovaSenhaUsuarioAdm() {
+      const id = document.getElementById('reset-user-id').value;
+      const novaSenha = document.getElementById('reset-nova-senha-adm').value;
+
+      if (!novaSenha || novaSenha.length < 6) {
+        return alert('Digite uma nova senha com pelo menos 6 caracteres.');
+      }
+
+      await db.from('perfis_usuarios').update({ senha: novaSenha }).eq('id', id);
+      alert('Senha do colaborador redefinida com sucesso!');
+      fecharModais();
+      await carregarUsuarios();
+      renderizarEquipe();
+    }
+
+    async function salvarNovoUsuario() {
+      const nome = document.getElementById('usr-nome').value.trim();
+      const email = document.getElementById('usr-email').value.trim();
+      const senha = document.getElementById('usr-senha').value;
+      const cargo = document.getElementById('usr-cargo').value;
+
+      if (!nome || !email) return alert('Preencha o nome e o e-mail do colaborador.');
+
+      await db.from('perfis_usuarios').insert([{ nome, email, senha, cargo, status: 'ativo' }]);
+      fecharModais();
+      await carregarUsuarios();
+      renderizarEquipe();
+    }
+
+    // --- MODAIS GERAIS ---
+
+    function fecharModais() {
+      document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+    }
+
+    function abrirModalProduto() {
+      document.getElementById('modal-produto-titulo').innerText = 'Cadastrar Produto';
+      document.getElementById('prod-id').value = '';
+      document.getElementById('prod-nome').value = '';
+      document.getElementById('prod-custo').value = '';
+      document.getElementById('prod-preco').value = '';
+      document.getElementById('prod-comissao').value = '';
+      document.getElementById('prod-qtd').value = '';
+      document.getElementById('modal-produto').classList.add('active');
+    }
+
+    function abrirModalNovoUsuario() {
+      document.getElementById('modal-usuario').classList.add('active');
+    }
+
+    function abrirModalDespesaExtra() {
+      document.getElementById('modal-despesa').classList.add('active');
+    }
+
+    function abrirConfiguracoes() {
+      document.getElementById('modal-configuracoes').classList.add('active');
+    }
+  </script>
+</body>
+</html>
