@@ -169,15 +169,15 @@
 
   <div id="modal-alterar-senha-adm" class="modal-overlay"><div class="modal-card"><button class="modal-close" onclick="fecharModais()">×</button><h3>Redefinir senha</h3><input type="hidden" id="reset-user-id"><div class="form-group"><label for="reset-user-nome">Colaborador</label><input type="text" id="reset-user-nome" class="form-control" readonly></div><div class="form-group"><label for="reset-nova-senha-adm">Nova senha</label><input type="password" id="reset-nova-senha-adm" class="form-control" autocomplete="new-password"></div><div class="form-actions"><button class="btn btn-secondary" onclick="fecharModais()">Cancelar</button><button class="btn btn-primary" onclick="salvarNovaSenhaUsuarioAdm()">Salvar senha</button></div></div></div>
 
-  <div id="modal-usuario" class="modal-overlay"><div class="modal-card"><button class="modal-close" onclick="fecharModais()">×</button><h3>Adicionar colaborador</h3><div class="form-group"><label for="usr-nome">Nome completo</label><input type="text" id="usr-nome" class="form-control"></div><div class="form-group"><label for="usr-email">E-mail</label><input type="email" id="usr-email" class="form-control"></div><div class="form-group"><label for="usr-senha">Senha inicial</label><input type="password" id="usr-senha" class="form-control" autocomplete="new-password" placeholder="O colaborador definirá a senha pelo convite"></div><div class="form-group"><label for="usr-cargo">Perfil de acesso</label><select id="usr-cargo" class="form-control"><option value="Vendedor">Vendedor</option><option value="ADM">Administrador (ADM)</option></select></div><div class="form-actions"><button class="btn btn-secondary" onclick="fecharModais()">Cancelar</button><button class="btn btn-primary" onclick="salvarNovoUsuario()">Adicionar usuário</button></div></div></div>
+  <div id="modal-usuario" class="modal-overlay"><div class="modal-card"><button class="modal-close" onclick="fecharModais()">×</button><h3>Convidar colaborador</h3><div class="form-group"><label for="usr-nome">Nome completo</label><input type="text" id="usr-nome" class="form-control" autocomplete="name"></div><div class="form-group"><label for="usr-email">E-mail</label><input type="email" id="usr-email" class="form-control" autocomplete="email"></div><p class="modal-intro">O colaborador receberá um link de acesso por e-mail. A conta será criada como Vendedor e ficará pendente até sua aprovação. Senhas não são armazenadas no banco da Hend Drinks.</p><div class="form-actions"><button class="btn btn-secondary" onclick="fecharModais()">Cancelar</button><button class="btn btn-primary" onclick="salvarNovoUsuario()">Enviar convite</button></div></div></div>
 
   <div id="modal-configuracoes" class="modal-overlay"><div class="modal-card"><button class="modal-close" onclick="fecharModais()">×</button><h3>Configurações</h3><div class="form-group"><label>APARÊNCIA</label><button class="btn btn-secondary btn-block" style="justify-content:space-between" onclick="alternarTemaVisual()"><span id="theme-status-text">☾ Modo escuro</span><span>Alternar ↻</span></button></div><div class="form-group"><label>CONTA</label><button class="btn btn-secondary btn-block" onclick="abrirModalMinhaSenha()">⌑ Alterar minha senha</button></div><button class="btn btn-danger btn-block" style="margin-top:4px" onclick="fazerLogout()">Sair da conta ↗</button><button class="btn btn-quiet btn-block" style="margin-top:8px" onclick="fecharModais()">Fechar</button></div></div>
 
   <script>
 
     // CREDENCIAIS SUPABASE
-    const SUPABASE_URL = 'https://piuttahokwgbawgczidw.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_DtAckDhC19XwNLSRGHRx4Q_xtXtfQMT';
+    const SUPABASE_URL = 'https://fzjvrnpfggdjvvksbuhf.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_WF1W4rS0qDOn4_5iGM4IeA_eICVPVV7';
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // ESTADO GLOBAL DA APLICAÇÃO
@@ -1138,12 +1138,13 @@ function abrirModalRedefinirSenhaUsuario(id, nome = '') {
 
     async function salvarNovaSenhaUsuarioAdm() {
       if (!(await exigirPermissao('ADM'))) return;
-      const email = document.getElementById('reset-user-email')?.value || '';
-      if (!email) return alert('Solicite que o colaborador use a recuperação de senha pelo próprio e-mail.');
-      const { error } = await db.auth.resetPasswordForEmail(email, {
+      const id = document.getElementById('reset-user-id').value;
+      const perfil = usuariosList.find(u => String(u.id) === String(id));
+      if (!perfil?.email) return alert('Não foi possível localizar o e-mail deste colaborador.');
+      const { error } = await db.auth.resetPasswordForEmail(perfil.email, {
         redirectTo: `${location.origin}${location.pathname}?password_reset=1`
       });
-      if (error) return alert('Não foi possível enviar o link de redefinição.');
+      if (error) { console.error(error); return alert('Não foi possível enviar o link de redefinição.'); }
       alert('Link de redefinição enviado ao e-mail do colaborador.');
       fecharModais();
     }
@@ -1151,16 +1152,28 @@ async function salvarNovoUsuario() {
       if (!(await exigirPermissao('ADM'))) return;
       const nome = document.getElementById('usr-nome').value.trim();
       const email = document.getElementById('usr-email').value.trim().toLowerCase();
-      const senha = document.getElementById('usr-senha').value;
-      const cargo = document.getElementById('usr-cargo').value;
       if (!nome || !email) return alert('Preencha o nome e o e-mail do colaborador.');
-      if (!senha || senha.length < 8) return alert('Defina uma senha inicial com pelo menos 8 caracteres.');
-      const { error } = await db.from('perfis_usuarios').insert([{ nome, email, senha, cargo, status: 'ativo' }]);
-      if (error) { console.error(error); return alert('Não foi possível cadastrar o colaborador. Verifique se o e-mail já existe.'); }
-      fecharModais();
-      document.getElementById('usr-nome').value=''; document.getElementById('usr-email').value=''; document.getElementById('usr-senha').value='';
-      await carregarUsuarios(); renderizarEquipe();
+      if (email === EMAIL_ADMIN_ME) return alert('A conta principal já é a administradora deste projeto.');
+      try {
+        const { error } = await db.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+            data: { nome },
+            emailRedirectTo: `${location.origin}${location.pathname}`
+          }
+        });
+        if (error) throw error;
+        alert('Link de acesso enviado. Quando o colaborador confirmar o e-mail, o perfil será criado como Vendedor pendente. Depois você poderá aprová-lo na Gestão de Equipe.');
+        fecharModais();
+        document.getElementById('usr-nome').value = '';
+        document.getElementById('usr-email').value = '';
+      } catch (error) {
+        console.error(error);
+        alert('Não foi possível enviar o convite. Confira o e-mail e as configurações de SMTP/limites de e-mail do Supabase.');
+      }
     }
+
 
     // --- MODAIS GERAIS ---
 
