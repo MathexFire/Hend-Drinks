@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hend Bebidas - Sistema de Gestão</title>
+  <title>Hend Drinks - Sistema de Gestão</title>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -334,16 +334,24 @@
     .auth-tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
     .link-forgot { font-size: 0.8rem; color: var(--color-primary); text-decoration: none; cursor: pointer; display: inline-block; margin-top: 8px; }
   </style>
+  <!-- Dynamic Favicon & Web App Manifest for Home Screen Shortcut -->
+  <link id="dynamic-favicon" rel="shortcut icon" href="">
+  <link id="dynamic-apple-icon" rel="apple-touch-icon" href="">
+  <link id="dynamic-manifest" rel="manifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hend Drinks">
+  <meta name="theme-color" content="#181818">
 </head>
 <body>
 
   <!-- HEADER -->
   <header class="app-header">
     <div class="brand-container">
-      <span style="font-size: 1.4rem;">⚡</span>
-      <span id="logo-render-slot">
-        <h1 class="brand-title">HEND BEBIDAS</h1>
-      </span>
+      <div id="logo-icon-slot" style="display: flex; align-items: center; justify-content: center;">
+        <span style="font-size: 1.5rem;" id="default-logo-icon">🍹</span>
+      </div>
+      <h1 class="brand-title">HEND DRINKS</h1>
     </div>
     <div class="header-actions">
       <div class="user-badge" id="header-user-box">
@@ -361,8 +369,10 @@
     <div id="auth-modal" class="modal-overlay active">
       <div class="modal-card">
         <div style="text-align: center; margin-bottom: 16px;">
-          <span style="font-size: 2rem;">⚡</span>
-          <h2 style="font-family: var(--font-title); color: var(--color-primary); margin-top: 4px;">HEND BEBIDAS</h2>
+          <div id="auth-logo-slot" style="display: flex; justify-content: center; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 2.2rem;" id="auth-default-icon">🍹</span>
+          </div>
+          <h2 style="font-family: var(--font-title); color: var(--color-primary); margin-top: 4px;">HEND DRINKS</h2>
         </div>
 
         <div class="auth-tab-switch">
@@ -847,7 +857,9 @@
       }
       const logoUrl = localStorage.getItem('hend_logo_url');
       if (logoUrl) {
-        document.getElementById('logo-render-slot').innerHTML = `<img src="${logoUrl}" class="brand-logo-img" alt="Logo">`;
+        const inputLogo = document.getElementById('config-logo-url');
+        if (inputLogo) inputLogo.value = logoUrl;
+        aplicarLogoNoSistema(logoUrl);
       }
     }
 
@@ -859,10 +871,63 @@
     }
 
     function salvarLogoUrl(url) {
+      url = (url || '').trim();
       if (url) {
         localStorage.setItem('hend_logo_url', url);
-        document.getElementById('logo-render-slot').innerHTML = `<img src="${url}" class="brand-logo-img" alt="Logo">`;
+        aplicarLogoNoSistema(url);
+        alert('✨ Logo configurada com sucesso! O ícone do aplicativo na tela inicial e no cabeçalho foram atualizados.');
+      } else {
+        localStorage.removeItem('hend_logo_url');
+        location.reload();
       }
+    }
+
+    function aplicarLogoNoSistema(url) {
+      if (!url) return;
+      
+      // 1. Atualizar Logo no Cabeçalho (substitui o ícone/raio)
+      const logoSlot = document.getElementById('logo-icon-slot');
+      if (logoSlot) {
+        logoSlot.innerHTML = `<img src="${url}" class="brand-logo-img" alt="Logo" style="height: 38px; width: auto; object-fit: contain;">`;
+      }
+
+      // 2. Atualizar Logo na Tela de Login/Cadastro
+      const authSlot = document.getElementById('auth-logo-slot');
+      if (authSlot) {
+        authSlot.innerHTML = `<img src="${url}" style="height: 48px; width: auto; object-fit: contain;" alt="Logo">`;
+      }
+
+      // 3. Atualizar Ícone do App no Celular (Atalho / PWA)
+      atualizarIconesEAtalho(url);
+    }
+
+    function atualizarIconesEAtalho(url) {
+      if (!url) return;
+
+      // Favicon para navegador e Apple Touch Icon para iOS/Android
+      let favicon = document.getElementById('dynamic-favicon');
+      let appleIcon = document.getElementById('dynamic-apple-icon');
+      if (favicon) favicon.href = url;
+      if (appleIcon) appleIcon.href = url;
+
+      // Gerar Web App Manifest dinâmico para atalho na Tela Inicial
+      const manifestObj = {
+        name: "Hend Drinks - Gestão",
+        short_name: "Hend Drinks",
+        start_url: "./",
+        display: "standalone",
+        background_color: "#181818",
+        theme_color: "#32D704",
+        icons: [
+          { src: url, sizes: "192x192", type: "image/png" },
+          { src: url, sizes: "512x512", type: "image/png" }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+      const manifestURL = URL.createObjectURL(blob);
+
+      let manifestLink = document.getElementById('dynamic-manifest');
+      if (manifestLink) manifestLink.href = manifestURL;
     }
 
     // CORREÇÃO CRÍTICA DO BLOQUEIO: Consulta o Banco de Dados em tempo real
