@@ -312,9 +312,10 @@
     }
     .auth-tab-btn {
       flex: 1; padding: 10px; background: none; border: none; color: var(--color-text-muted);
-      font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent;
+      font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent; font-size: 0.8rem;
     }
     .auth-tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+    .link-forgot { font-size: 0.8rem; color: var(--color-primary); text-decoration: none; cursor: pointer; display: inline-block; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -339,7 +340,7 @@
   <!-- MAIN CONTAINER -->
   <main class="container">
 
-    <!-- AUTH SCREEN (LOGIN & SOLICITAR CADASTRO) -->
+    <!-- AUTH SCREEN (LOGIN, SOLICITAR CADASTRO & ESQUECI A SENHA) -->
     <div id="auth-modal" class="modal-overlay active">
       <div class="modal-card">
         <div style="text-align: center; margin-bottom: 16px;">
@@ -350,6 +351,7 @@
         <div class="auth-tab-switch">
           <button class="auth-tab-btn active" id="btn-auth-login" onclick="mudarAuthTab('login')">ENTRAR</button>
           <button class="auth-tab-btn" id="btn-auth-signup" onclick="mudarAuthTab('signup')">PEDIR CADASTRO</button>
+          <button class="auth-tab-btn" id="btn-auth-reset" onclick="mudarAuthTab('reset')">RECUPERAR SENHA</button>
         </div>
 
         <!-- LOGIN FORM -->
@@ -363,6 +365,9 @@
             <input type="password" id="login-senha" class="form-control" required placeholder="••••••••">
           </div>
           <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">ENTRAR NO SISTEMA</button>
+          <div style="text-align: center; margin-top: 10px;">
+            <a class="link-forgot" onclick="mudarAuthTab('reset')">Esqueceu sua senha? Clique aqui</a>
+          </div>
         </form>
 
         <!-- SOLICITAR CADASTRO FORM -->
@@ -377,9 +382,9 @@
           </div>
           <div class="form-group">
             <label>Senha Forte</label>
-            <input type="password" id="signup-senha" class="form-control" required placeholder="••••••••" oninput="avaliarSenha(this.value)">
-            <div class="pwd-meter"><div id="pwd-bar" class="pwd-meter-bar"></div></div>
-            <div id="pwd-hint" class="pwd-hint">Use 8+ caracteres com letras maiúsculas, minúsculas e números.</div>
+            <input type="password" id="signup-senha" class="form-control" required placeholder="••••••••" oninput="avaliarSenha(this.value, 'pwd-bar-signup', 'pwd-hint-signup')">
+            <div class="pwd-meter"><div id="pwd-bar-signup" class="pwd-meter-bar"></div></div>
+            <div id="pwd-hint-signup" class="pwd-hint">Use 8+ caracteres com letras maiúsculas, minúsculas e números.</div>
           </div>
           <div class="form-group">
             <label>Confirmar Senha</label>
@@ -390,19 +395,36 @@
             Sua solicitação será enviada para avaliação do Administrador.
           </p>
         </form>
+
+        <!-- RECUPERAR / REALTERAR SENHA FORM -->
+        <form id="form-reset" style="display: none;" onsubmit="event.preventDefault(); processarRecuperacaoSenha();">
+          <div class="form-group">
+            <label>Seu E-mail Cadastrado</label>
+            <input type="email" id="reset-email" class="form-control" required placeholder="seuemail@empresa.com">
+          </div>
+          <div class="form-group">
+            <label>Nova Senha</label>
+            <input type="password" id="reset-senha" class="form-control" required placeholder="••••••••" oninput="avaliarSenha(this.value, 'pwd-bar-reset', 'pwd-hint-reset')">
+            <div class="pwd-meter"><div id="pwd-bar-reset" class="pwd-meter-bar"></div></div>
+            <div id="pwd-hint-reset" class="pwd-hint">Crie uma nova senha forte.</div>
+          </div>
+          <div class="form-group">
+            <label>Confirmar Nova Senha</label>
+            <input type="password" id="reset-senha-confirm" class="form-control" required placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn" style="width: 100%; margin-top: 10px;">ALTERAR MINHA SENHA</button>
+        </form>
       </div>
     </div>
 
     <!-- TAB 1: VENDAS (PDV) -->
     <section id="tab-vendas" class="tab-content active">
-      <!-- STATE A: VENDA NÃO INICIADA -->
       <div id="venda-state-closed" class="venda-start-box">
         <h2>CAIXA FECHADO / AGUARDANDO VENDA</h2>
         <p>Clique no botão abaixo para abrir a sessão de vendas e habilitar o catálogo de produtos.</p>
         <button class="btn" style="font-size: 1.1rem; padding: 16px 32px;" onclick="iniciarSessaoVenda()">⚡ INICIAR VENDA</button>
       </div>
 
-      <!-- STATE B: VENDA EM ANDAMENTO -->
       <div id="venda-state-open" style="display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h2>Caixa de Vendas</h2>
@@ -476,7 +498,6 @@
         </div>
       </div>
 
-      <!-- SELETOR DE GRÁFICOS -->
       <div style="background: var(--color-card-dark); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--color-border-dark);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <h3 style="font-size: 1rem;">Análise Visual de Desempenho</h3>
@@ -498,13 +519,11 @@
         <button class="btn btn-sm" onclick="abrirModalNovoUsuario()">+ Adicionar Usuário</button>
       </div>
 
-      <!-- SOLICITAÇÕES PENDENTES -->
       <div style="margin-bottom: 20px;">
         <h3 style="font-size: 0.95rem; color: var(--color-alert-warning); margin-bottom: 10px;">⌛ Solicitações de Cadastro Pendentes</h3>
         <div id="lista-solicitacoes-pendentes" style="display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
 
-      <!-- COLABORADORES ATIVOS -->
       <div>
         <h3 style="font-size: 0.95rem; color: var(--color-primary); margin-bottom: 10px;">👥 Colaboradores Cadastrados</h3>
         <div id="lista-equipe-ativos" style="display: flex; flex-direction: column; gap: 10px;"></div>
@@ -513,7 +532,7 @@
 
   </main>
 
-  <!-- PDV FOOTER BAR (SOMENTE EM VENDAS) -->
+  <!-- PDV FOOTER BAR -->
   <div class="pdv-footer" id="pdv-bar" style="display: none;">
     <div>
       <span style="font-size: 0.78rem; color: var(--color-text-muted);">Itens no Carrinho: <strong id="cart-count">0</strong></span>
@@ -549,7 +568,7 @@
     </div>
   </div>
 
-  <!-- MODAL CADASTRO/EDIÇÃO DE PRODUTO (COM LÁPIS) -->
+  <!-- MODAL CADASTRO/EDIÇÃO DE PRODUTO -->
   <div id="modal-produto" class="modal-overlay">
     <div class="modal-card">
       <h3 id="modal-produto-titulo" style="margin-bottom: 12px;">Cadastrar Produto</h3>
@@ -640,6 +659,26 @@
     </div>
   </div>
 
+  <!-- MODAL ALTERAR SENHA DE QUALQUER USUÁRIO (ADM ONLY) -->
+  <div id="modal-alterar-senha-adm" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 12px;">Redefinir Senha do Usuário</h3>
+      <input type="hidden" id="reset-user-id">
+      <div class="form-group">
+        <label>Usuário</label>
+        <input type="text" id="reset-user-nome" class="form-control" readonly>
+      </div>
+      <div class="form-group">
+        <label>Nova Senha</label>
+        <input type="password" id="reset-nova-senha-adm" class="form-control" placeholder="Digite a nova senha">
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="fecharModais()">Cancelar</button>
+        <button class="btn" style="flex:1;" onclick="salvarNovaSenhaUsuarioAdm()">Salvar Nova Senha</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL ADICIONAR USUÁRIO DIRETO -->
   <div id="modal-usuario" class="modal-overlay">
     <div class="modal-card">
@@ -686,7 +725,8 @@
         <input type="text" id="config-logo-url" class="form-control" placeholder="https://exemplo.com/logo.png" onchange="salvarLogoUrl(this.value)">
       </div>
       <hr style="border-color: var(--color-border-dark); margin: 16px 0;">
-      <button class="btn btn-danger" style="width: 100%;" onclick="fazerLogout()">🚪 Sair da Conta (Logout)</button>
+      <button class="btn btn-secondary" style="width: 100%;" onclick="abrirModalMinhaSenha()">🔑 Alterar Minha Senha</button>
+      <button class="btn btn-danger" style="width: 100%; margin-top: 10px;" onclick="fazerLogout()">🚪 Sair da Conta (Logout)</button>
       <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="fecharModais()">Fechar</button>
     </div>
   </div>
@@ -698,9 +738,9 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // ESTADO GLOBAL DA APLICAÇÃO
-    let usuarioAtual = null; // Guardará o perfil logado
+    let usuarioAtual = null;
     let produtos = [];
-    let carrinho = []; // Array de { produto_id, nome, preco, comissao, custo, quantidade }
+    let carrinho = [];
     let vendas = [];
     let despesasExtras = [];
     let usuariosList = [];
@@ -708,10 +748,8 @@
     let vendaSessaoAtiva = false;
     let chartInstance = null;
 
-    // ADMIN PADRÃO DO SISTEMA (CONFIGURADO)
-    const EMAIL_ADMIN_ME = 'mathex.fire.0@gmail.com'; // E-mail do Administrador Principal
+    const EMAIL_ADMIN_ME = 'mathex.fire.0@gmail.com';
 
-    // INICIALIZAÇÃO
     window.onload = async () => {
       carregarTemaSalvo();
       verificarSessaoUsuario();
@@ -748,7 +786,6 @@
       if (sessaoRaw) {
         try {
           const sessao = JSON.parse(sessaoRaw);
-          // Verificar expiração de 7 dias
           const seteDiasMs = 7 * 24 * 60 * 60 * 1000;
           if (Date.now() - sessao.timestamp < seteDiasMs) {
             usuarioAtual = sessao.user;
@@ -758,7 +795,6 @@
           }
         } catch(e) {}
       }
-      // Se não houver sessão válida, exibe tela de login
       document.getElementById('auth-modal').classList.add('active');
     }
 
@@ -766,7 +802,6 @@
       document.getElementById('current-user-name').innerText = usuarioAtual.nome;
       document.getElementById('current-user-role').innerText = usuarioAtual.cargo;
 
-      // Se for vendedor, esconde abas restritas
       if (usuarioAtual.cargo === 'Vendedor') {
         document.getElementById('btn-novo-produto').style.display = 'none';
       }
@@ -784,18 +819,21 @@
       atualizarFinanceiro();
     }
 
-    // --- AUTH / CADASTRO / LOGIN FLOW ---
+    // --- AUTH FLOW ---
 
     function mudarAuthTab(tab) {
       document.getElementById('btn-auth-login').classList.toggle('active', tab === 'login');
       document.getElementById('btn-auth-signup').classList.toggle('active', tab === 'signup');
+      document.getElementById('btn-auth-reset').classList.toggle('active', tab === 'reset');
+      
       document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('form-signup').style.display = tab === 'signup' ? 'block' : 'none';
+      document.getElementById('form-reset').style.display = tab === 'reset' ? 'block' : 'none';
     }
 
-    function avaliarSenha(senha) {
-      const bar = document.getElementById('pwd-bar');
-      const hint = document.getElementById('pwd-hint');
+    function avaliarSenha(senha, barId, hintId) {
+      const bar = document.getElementById(barId);
+      const hint = document.getElementById(hintId);
       let score = 0;
       if (senha.length >= 8) score++;
       if (/[A-Z]/.test(senha)) score++;
@@ -818,11 +856,9 @@
       const email = document.getElementById('login-email').value.trim();
       const senha = document.getElementById('login-senha').value;
 
-      // Buscar usuário no Supabase
       const { data: users, error } = await db.from('perfis_usuarios').select('*').eq('email', email);
 
       if (error || !users || users.length === 0) {
-        // Se for o admin inicial tentando entrar
         if (email === EMAIL_ADMIN_ME) {
           usuarioAtual = { id: 'usr-admin-me', nome: 'Administrador Principal', email: EMAIL_ADMIN_ME, cargo: 'ADM', status: 'ativo' };
           salvarSessao(usuarioAtual);
@@ -830,7 +866,7 @@
           inicializarAppComUsuario();
           return;
         }
-        return alert('Usuário não encontrado. Verifique o e-mail digitado ou peça o cadastro.');
+        return alert('Usuário não encontrado. Verifique o e-mail digitado ou solicite um cadastro.');
       }
 
       const usr = users[0];
@@ -839,11 +875,11 @@
       }
 
       if (usr.status === 'pendente') {
-        return alert('Seu cadastro ainda está PENDENTE de aprovação pelo Administrador. Por favor, aguarde.');
+        return alert('Seu cadastro ainda está PENDENTE de aprovação pelo Administrador.');
       }
 
       if (usr.status === 'bloqueado') {
-        return alert('Seu acesso ao sistema foi bloqueado pelo Administrador.');
+        return alert('Seu acesso ao sistema foi bloqueado.');
       }
 
       usuarioAtual = usr;
@@ -872,12 +908,27 @@
         return alert('Erro ao solicitar cadastro. Este e-mail já pode estar cadastrado.');
       }
 
-      if (status === 'ativo') {
-        alert('Cadastro de Administrador ativado com sucesso! Faça seu login.');
-      } else {
-        alert('Solicitação de cadastro enviada com sucesso! O Administrador irá avaliar seu acesso.');
+      alert(status === 'ativo' ? 'Cadastro ativado! Faça seu login.' : 'Solicitação enviada ao Administrador!');
+      mudarAuthTab('login');
+      document.getElementById('login-email').value = email;
+    }
+
+    async function processarRecuperacaoSenha() {
+      const email = document.getElementById('reset-email').value.trim();
+      const senha = document.getElementById('reset-senha').value;
+      const confirm = document.getElementById('reset-senha-confirm').value;
+
+      if (senha !== confirm) return alert('As senhas não coincidem.');
+      if (senha.length < 6) return alert('A senha deve ter no mínimo 6 caracteres.');
+
+      const { data: users, error } = await db.from('perfis_usuarios').select('*').eq('email', email);
+
+      if (error || !users || users.length === 0) {
+        return alert('E-mail não encontrado no sistema.');
       }
 
+      await db.from('perfis_usuarios').update({ senha }).eq('email', email);
+      alert('Sua senha foi alterada com sucesso! Faça login com a nova senha.');
       mudarAuthTab('login');
       document.getElementById('login-email').value = email;
     }
@@ -969,7 +1020,7 @@
 
     function adicionarAoCarrinho(id) {
       const prod = produtos.find(p => p.id === id);
-      if (!prod || prod.estoque <= 0) return alert('Produto indisponível ou sem estoque no momento!');
+      if (!prod || prod.estoque <= 0) return alert('Produto indisponível ou sem estoque!');
 
       const itemExistente = carrinho.find(c => c.produto_id === id);
       if (itemExistente) {
@@ -1061,7 +1112,6 @@
       const pagamento = document.getElementById('venda-pagamento').value;
       const comissaoTotal = carrinho.reduce((sum, item) => sum + (item.comissao * item.quantidade), 0);
 
-      // Registrar venda
       const { data, error } = await db.from('vendas').insert([{
         vendedor_id: usuarioAtual ? usuarioAtual.id : 'usr-anon',
         vendedor_nome: usuarioAtual ? usuarioAtual.nome : 'Vendedor',
@@ -1075,7 +1125,6 @@
         return alert('Erro ao salvar venda no banco de dados. Tente novamente.');
       }
 
-      // Dar baixa no estoque de cada item vendido
       for (let item of carrinho) {
         const prod = produtos.find(p => p.id === item.produto_id);
         if (prod) {
@@ -1096,7 +1145,7 @@
     }
 
     function fecharCaixaDoDia() {
-      if (confirm('Deseja realmente fechar o caixa do dia? A sessão de vendas atual será finalizada.')) {
+      if (confirm('Deseja realmente fechar o caixa do dia?')) {
         vendaSessaoAtiva = false;
         carrinho = [];
         atualizarCarrinhoBar();
@@ -1107,7 +1156,7 @@
       }
     }
 
-    // --- ESTOQUE (COM EDIÇÃO LÁPIS ✏️) ---
+    // --- ESTOQUE (EDIÇÃO LÁPIS ✏️) ---
 
     function renderizarEstoque() {
       const grid = document.getElementById('grid-estoque-produtos');
@@ -1196,7 +1245,7 @@
     async function atualizarFinanceiro() {
       const faturamento = vendas.reduce((s, v) => s + Number(v.total), 0);
       const comissoes = vendas.reduce((s, v) => s + Number(v.comissao_total), 0);
-      const cmvEstoque = faturamento * 0.45; // Estimativa média de custo do estoque
+      const cmvEstoque = faturamento * 0.45;
       const despesas = despesasExtras.filter(d => d.tipo === 'saida').reduce((s, d) => s + Number(d.valor), 0);
       const entradas = despesasExtras.filter(d => d.tipo === 'entrada').reduce((s, d) => s + Number(d.valor), 0);
 
@@ -1297,7 +1346,7 @@
       }, 1000);
     }
 
-    // --- EQUIPE & APROVAÇÕES DE CADASTRO ---
+    // --- EQUIPE & APROVAÇÕES ---
 
     function renderizarEquipe() {
       const divPendentes = document.getElementById('lista-solicitacoes-pendentes');
@@ -1330,6 +1379,7 @@
             <span class="user-email-sub">${u.email} • <strong>${u.cargo}</strong></span>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
+            <button class="btn btn-secondary btn-sm" onclick="abrirModalRedefinirSenhaUsuario('${u.id}', '${u.nome}')" title="Redefinir Senha">🔑 Senha</button>
             <span class="badge-role" style="${u.status === 'bloqueado' ? 'background:rgba(229,57,53,0.2); color:#E53935;' : ''}">
               ${u.status === 'ativo' ? 'Ativo' : 'Bloqueado'}
             </span>
@@ -1360,6 +1410,28 @@
     async function alternarStatusUsuario(id, statusAtual) {
       const novoStatus = statusAtual === 'ativo' ? 'bloqueado' : 'ativo';
       await db.from('perfis_usuarios').update({ status: novoStatus }).eq('id', id);
+      await carregarUsuarios();
+      renderizarEquipe();
+    }
+
+    function abrirModalRedefinirSenhaUsuario(id, nome) {
+      document.getElementById('reset-user-id').value = id;
+      document.getElementById('reset-user-nome').value = nome;
+      document.getElementById('reset-nova-senha-adm').value = '';
+      document.getElementById('modal-alterar-senha-adm').classList.add('active');
+    }
+
+    async function salvarNovaSenhaUsuarioAdm() {
+      const id = document.getElementById('reset-user-id').value;
+      const novaSenha = document.getElementById('reset-nova-senha-adm').value;
+
+      if (!novaSenha || novaSenha.length < 6) {
+        return alert('Digite uma nova senha com pelo menos 6 caracteres.');
+      }
+
+      await db.from('perfis_usuarios').update({ senha: novaSenha }).eq('id', id);
+      alert('Senha do colaborador redefinida com sucesso!');
+      fecharModais();
       await carregarUsuarios();
       renderizarEquipe();
     }
