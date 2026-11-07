@@ -285,15 +285,15 @@
         return false;
       }
 
-      const authUser = authData.user;
       const { data: profile, error } = await db
-        .from('perfis_usuarios')
-        .select('id,nome,email,cargo,status,created_at')
-        .eq('auth_user_id', authUser.id)
-        .maybeSingle();
-      console.log('HEND AUTH USER:', authUser.id);
-console.log('HEND PROFILE:', profile);
-console.log('HEND PROFILE ERROR:', error);
+  .from('perfis_usuarios')
+  .select('id,nome,email,cargo,status,created_at')
+  .eq('email', authUser.email)
+  .eq('auth_user_id', authUser.id)
+  .maybeSingle();
+
+console.log('Perfil encontrado:', profile);
+console.log('Erro ao buscar perfil:', error);
 
       if (error || !profile) {
         await db.auth.signOut();
