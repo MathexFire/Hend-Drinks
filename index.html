@@ -291,6 +291,9 @@
         .select('id,nome,email,cargo,status,created_at')
         .eq('auth_user_id', authUser.id)
         .maybeSingle();
+      console.log('HEND AUTH USER:', authUser.id);
+console.log('HEND PROFILE:', profile);
+console.log('HEND PROFILE ERROR:', error);
 
       if (error || !profile) {
         await db.auth.signOut();
